@@ -156,6 +156,35 @@ export function getHistory(url?: string): Record<string, HistoryItem[]> | Histor
   return out
 }
 
+// Daily summary over the last N days. Today = index 0, yesterday = index 1, etc.
+export function summarizeDaily(history: HistoryItem[], days = 30): Array<{ date: string; total: number; up: number; ratio: number | null }> {
+  const byDay: Record<string, { total: number; up: number }> = {}
+  for (const h of history) {
+    const d = new Date(h.timestamp)
+    // normalize to YYYY-MM-DD UTC to keep consistent in serverless
+    const dateKey = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString().slice(0, 10)
+    const bucket = byDay[dateKey] || { total: 0, up: 0 }
+    bucket.total += 1
+    bucket.up += h.isDown ? 0 : 1
+    byDay[dateKey] = bucket
+  }
+  const out: Array<{ date: string; total: number; up: number; ratio: number | null }> = []
+  const now = new Date()
+  // build from today backwards
+  for (let i = 0; i < days; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+    d.setUTCDate(d.getUTCDate() - i)
+    const key = d.toISOString().slice(0, 10)
+    const stats = byDay[key]
+    if (!stats) {
+      out.push({ date: key, total: 0, up: 0, ratio: null })
+    } else {
+      out.push({ date: key, total: stats.total, up: stats.up, ratio: stats.total ? stats.up / stats.total : null })
+    }
+  }
+  return out
+}
+
 export type Incident = {
   id: string
   title: string

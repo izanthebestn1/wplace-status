@@ -21,6 +21,7 @@ export default function Home() {
     urls.map((u) => ({ ...u, isDown: false, downSince: null, statusCode: null, responseTime: 0 }))
   );
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const [daily, setDaily] = useState<Record<string, Array<{ date: string; total: number; up: number; ratio: number | null }>>>({});
 
   // Persist state (optional UX)
   useEffect(() => {
@@ -61,6 +62,13 @@ export default function Home() {
         };
       }));
       setLastUpdated(Date.now());
+      // fetch daily summary after recording history server-side
+      try {
+        const params = urls.map(u => `u=${encodeURIComponent(u.url)}`).join('&');
+        const dRes = await fetch(`/api/daily?days=30&${params}`, { cache: 'no-store' });
+        const dJson = await dRes.json();
+        setDaily(dJson.summary || {});
+      } catch {}
     } catch {
       setStatus((prev) => prev.map((item) => ({
         ...item,
@@ -166,6 +174,23 @@ export default function Home() {
                 <div style={{ marginLeft: "auto" }}>
                   <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: "#93c5fd", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>Visit Service →</a>
                 </div>
+              </div>
+
+              {/* Daily Heat Strip (today to 29 days back) */}
+              <div style={{ marginTop: 12, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {(daily[s.url] || []).map((d, idx) => {
+                  // color scale: unknown=gray, 0% up=red, mid=amber, 100%=green. Today first.
+                  let bg = '#334155';
+                  if (d.ratio === null) bg = '#334155';
+                  else if (d.ratio >= 0.99) bg = '#16a34a';
+                  else if (d.ratio >= 0.9) bg = '#84cc16';
+                  else if (d.ratio >= 0.5) bg = '#f59e0b';
+                  else bg = '#ef4444';
+                  return (
+                    <div key={d.date + idx} title={`${d.date}\n${d.ratio === null ? 'Unknown' : Math.round(d.ratio*100)+'% up'} (${d.up}/${d.total})`}
+                      style={{ width: 10, height: 10, borderRadius: 2, background: bg, opacity: d.ratio === null ? 0.5 : 1 }} />
+                  )
+                })}
               </div>
             </div>
           ))}
