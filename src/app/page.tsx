@@ -54,73 +54,42 @@ export default function Home() {
     localStorage.setItem('wplace-status', JSON.stringify(status));
   }, [status]);
 
-  const checkStatus = (urlIndex: number) => {
+  const checkStatus = async (urlIndex: number) => {
     const u = urls[urlIndex];
-    const startTime = Date.now();
-
-    // Primero intentamos la URL principal para obtener el código real del servicio
-    fetch(u.url, { method: "GET", cache: "no-cache" })
-      .then((mainResponse) => {
-        const mainResponseTime = Date.now() - startTime;
-
-        setStatus((prevStatus) =>
-          prevStatus.map((item, idx) => {
-            if (idx === urlIndex) {
-              const ok = mainResponse.ok; // 2xx
-              return {
-                ...item,
-                isDown: !ok, // 4xx/5xx cuentan como caído
-                downSince: ok ? null : (item.isDown ? item.downSince : Date.now()),
-                statusCode: mainResponse.status,
-                responseTime: mainResponseTime,
-              };
-            }
-            return item;
-          })
-        );
+    try {
+      const res = await fetch('/api/monitor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([{ name: u.name, url: u.url }]),
+        cache: 'no-store'
       })
-      .catch(() => {
-        // Si la URL principal falla (CORS, network), usar Cloudflare trace como verificación de alcance
-        const traceUrl = u.url.endsWith('/') ? u.url + 'cdn-cgi/trace' : u.url + '/cdn-cgi/trace';
-        fetch(traceUrl, { method: "GET", cache: "no-cache" })
-          .then((traceResponse) => {
-            const traceTime = Date.now() - startTime;
-
-            setStatus((prevStatus) =>
-              prevStatus.map((item, idx) => {
-                if (idx === urlIndex) {
-                  const reachable = traceResponse.ok; // normalmente 200 si Cloudflare responde
-                  return {
-                    ...item,
-                    isDown: !reachable,
-                    downSince: reachable ? null : (item.isDown ? item.downSince : Date.now()),
-                    // No podemos conocer el código real del servicio por CORS; marcamos 0 si no reachable, 200 si trace OK
-                    statusCode: reachable ? 200 : traceResponse.status,
-                    responseTime: traceTime,
-                  };
-                }
-                return item;
-              })
-            );
-          })
-          .catch(() => {
-            const finalTime = Date.now() - startTime;
-            // Totalmente inaccesible
-            setStatus((prevStatus) =>
-              prevStatus.map((item, idx) => (
-                idx === urlIndex
-                  ? {
-                      ...item,
-                      isDown: true,
-                      downSince: item.isDown ? item.downSince : Date.now(),
-                      statusCode: 0,
-                      responseTime: finalTime,
-                    }
-                  : item
-              ))
-            );
-          });
-      });
+      const data = await res.json()
+      const r = data.results?.[0]
+      if (!r) return
+      setStatus((prev) => prev.map((item, idx) => (
+        idx === urlIndex
+          ? {
+              ...item,
+              isDown: r.isDown,
+              downSince: r.isDown ? (item.isDown ? item.downSince : Date.now()) : null,
+              statusCode: r.statusCode,
+              responseTime: r.responseTime,
+            }
+          : item
+      )))
+    } catch (e) {
+      setStatus((prev) => prev.map((item, idx) => (
+        idx === urlIndex
+          ? {
+              ...item,
+              isDown: true,
+              downSince: item.isDown ? item.downSince : Date.now(),
+              statusCode: 0,
+              responseTime: 0,
+            }
+          : item
+      )))
+    }
   };
 
   useEffect(() => {

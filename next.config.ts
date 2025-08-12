@@ -1,13 +1,8 @@
 import type { NextConfig } from "next";
 
+// Vercel-ready config (no basePath/assetPrefix, no static export)
 const nextConfig: NextConfig = {
-  output: 'export',
-  trailingSlash: true,
-  images: {
-    unoptimized: true
-  },
-  basePath: '/wplace-status',
-  assetPrefix: '/wplace-status/'
+  reactStrictMode: true,
 };
 
 export default nextConfig;
