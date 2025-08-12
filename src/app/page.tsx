@@ -54,53 +54,48 @@ export default function Home() {
     localStorage.setItem('wplace-status', JSON.stringify(status));
   }, [status]);
 
-  const checkStatus = async (urlIndex: number) => {
-    const u = urls[urlIndex];
+  const checkStatus = async () => {
     try {
       const res = await fetch('/api/monitor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([{ name: u.name, url: u.url }]),
+        body: JSON.stringify(urls),
         cache: 'no-store'
       })
       const data = await res.json()
-      const r = data.results?.[0]
-      if (!r) return
-      setStatus((prev) => prev.map((item, idx) => (
-        idx === urlIndex
-          ? {
-              ...item,
-              isDown: r.isDown,
-              downSince: r.isDown ? (item.isDown ? item.downSince : Date.now()) : null,
-              statusCode: r.statusCode,
-              responseTime: r.responseTime,
-            }
-          : item
-      )))
+      const results: Array<{ name: string; url: string; statusCode: number; responseTime: number; isDown: boolean }> = data.results || []
+      setStatus((prev) => prev.map((item) => {
+        const r = results.find((x) => x.url === item.url)
+        if (!r) return item
+        return {
+          ...item,
+          isDown: r.isDown,
+          downSince: r.isDown ? (item.isDown ? item.downSince : Date.now()) : null,
+          statusCode: r.statusCode,
+          responseTime: r.responseTime,
+        }
+      }))
     } catch (e) {
-      setStatus((prev) => prev.map((item, idx) => (
-        idx === urlIndex
-          ? {
-              ...item,
-              isDown: true,
-              downSince: item.isDown ? item.downSince : Date.now(),
-              statusCode: 0,
-              responseTime: 0,
-            }
-          : item
-      )))
+      // fallback: marcar todos como caída temporal
+      setStatus((prev) => prev.map((item) => ({
+        ...item,
+        isDown: true,
+        downSince: item.isDown ? item.downSince : Date.now(),
+        statusCode: 0,
+        responseTime: 0,
+      })))
     }
   };
 
   useEffect(() => {
     // Verificación inicial (después de cargar desde localStorage)
     const timer = setTimeout(() => {
-      urls.forEach((_, i) => checkStatus(i));
+      checkStatus();
     }, 1000);
     
     // Verificación periódica
     const interval = setInterval(() => {
-      urls.forEach((_, i) => checkStatus(i));
+  checkStatus();
     }, 30000);
     
     return () => {

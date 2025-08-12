@@ -50,5 +50,25 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const urls = searchParams.getAll('u')
+  const names = searchParams.getAll('n')
+
+  let services: Service[]
+  if (urls.length) {
+    services = urls.map((u, i) => ({ name: names[i] || `Service ${i + 1}`, url: u }))
+  } else {
+    // Default demo services (same as dashboard)
+    services = [
+      { name: 'Frontend', url: 'https://wplace.live/' },
+      { name: 'Backend', url: 'https://backend.wplace.live/' },
+    ]
+  }
+
+  const results = await Promise.all(services.map(checkService))
+  return NextResponse.json({ results }, { headers: { 'Cache-Control': 'no-store' } })
+}
+
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
