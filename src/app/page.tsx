@@ -99,7 +99,7 @@ export default function Home() {
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 2rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-              <img src="/favicon.png" alt="WPlace" width={32} height={32} style={{ width: 32, height: 32, borderRadius: 8, objectFit: "cover" }} />
+              <img src="/icon.png" alt="WPlace" width={32} height={32} style={{ width: 32, height: 32, borderRadius: 8, objectFit: "cover" }} />
               <span style={{ fontSize: "1.25rem", fontWeight: 600 }}>WPlace Status</span>
               <div style={{ background: "linear-gradient(135deg, #059669, #047857)", color: "white", fontSize: 12, fontWeight: 700, padding: "0.25rem 0.5rem", borderRadius: 6, letterSpacing: "0.05em" }}>v1.6</div>
             </div>
@@ -214,6 +214,9 @@ export default function Home() {
       </section>
 
       <footer style={{ textAlign: "center", marginTop: 40, padding: "24px 0", borderTop: "1px solid rgba(148, 163, 184, 0.1)", color: "#64748b" }}>
+        <p style={{ margin: 0, marginBottom: 8, fontSize: 12, color: "#94a3b8" }}>
+          Disclaimer: this is not an official <a href="https://wplace.live/" target="_blank" rel="noopener noreferrer" style={{ color: "#93c5fd", textDecoration: "none" }}>wplace.live</a> page. wplace.live owns the rights to the favicon.
+        </p>
         <p style={{ margin: 0, fontSize: 14 }}>© 2025 <a href="https://guns.lol/izan" target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6", fontWeight: 600, textDecoration: "none" }}>Izan</a>. All rights reserved.</p>
         <p style={{ margin: "6px 0 0", fontSize: 14 }}>Built with <span style={{ color: "#3b82f6", fontWeight: 600 }}>Next.js</span> • Designed & developed with <span style={{ color: "#ef4444" }}>❤️</span></p>
       </footer>
