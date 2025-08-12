@@ -44,7 +44,7 @@ export default function Home() {
         cache: "no-store",
       });
       const data = await res.json();
-      const results: Array<{ name: string; url: string; statusCode: number; responseTime: number; isDown: boolean }>
+  const results: Array<{ name: string; url: string; statusCode: number; responseTime: number; isDown: boolean; tls?: { daysRemaining?: number | null } }>
         = data.results || [];
       setStatus((prev) => prev.map((item) => {
         const r = results.find((x) => x.url === item.url);
@@ -55,6 +55,9 @@ export default function Home() {
           downSince: r.isDown ? (item.isDown ? item.downSince : Date.now()) : null,
           statusCode: r.statusCode,
           responseTime: r.responseTime,
+          // keep tls days for quick display
+          // @ts-ignore
+          tls: r.tls
         };
       }));
       setLastUpdated(Date.now());
@@ -147,6 +150,14 @@ export default function Home() {
                     {s.responseTime === 0 ? "Checking..." : `${s.responseTime}ms`}
                   </span>
                 </div>
+                {'tls' in s && (s as any).tls && typeof (s as any).tls?.daysRemaining !== 'undefined' && (
+                  <div style={{ background: "rgba(148,163,184,0.08)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(148,163,184,0.2)" }}>
+                    <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>SSL</span>
+                    <span style={{ color: ((s as any).tls?.daysRemaining ?? 0) > 14 ? "#10b981" : ((s as any).tls?.daysRemaining ?? 0) > 3 ? "#f59e0b" : "#dc2626", fontSize: 14, fontWeight: 700 }}>
+                      {typeof (s as any).tls?.daysRemaining === 'number' ? `${(s as any).tls?.daysRemaining} days left` : 'Unknown'}
+                    </span>
+                  </div>
+                )}
                 {s.isDown && (
                   <div style={{ background: "rgba(239,68,68,0.12)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(248,113,113,0.25)", color: "#f87171" }}>
                     ⚠️ Service disruption detected
