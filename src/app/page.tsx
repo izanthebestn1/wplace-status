@@ -8,18 +8,6 @@ const urls = [
   { name: "Backend", url: "https://backend.wplace.live/" }
 ];
 
-function getTimeAgo(date: number | null, currentTime: number): string {
-  if (!date) return "";
-  const seconds = Math.floor((currentTime - date) / 1000);
-  if (seconds < 60) return `${seconds} seconds`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} minutes`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hours`;
-  const days = Math.floor(hours / 24);
-  return `${days} days`;
-}
-
 export default function Home() {
   const [status, setStatus] = useState<{ 
     name: string; 
@@ -69,151 +57,67 @@ export default function Home() {
   const checkStatus = (urlIndex: number) => {
     const u = urls[urlIndex];
     const startTime = Date.now();
-    
-    // Usar Cloudflare trace endpoint para verificar estado
-    const traceUrl = u.url.endsWith('/') ? u.url + 'cdn-cgi/trace' : u.url + '/cdn-cgi/trace';
-    
-    fetch(traceUrl, { 
-      method: "GET",
-      cache: "no-cache"
-    })
-      .then((response) => {
-        const responseTime = Date.now() - startTime;
-        
-        if (response.ok) {
-          // Si responde cdn-cgi/trace correctamente, el sitio está operativo
-          setStatus((prevStatus) =>
-            prevStatus.map((item, idx) =>
-              idx === urlIndex ? { 
-                ...item, 
-                isDown: false, 
-                downSince: null,
-                statusCode: response.status,
-                responseTime: responseTime
-              } : item
-            )
-          );
-        } else if (response.status === 404) {
-          // Si /cdn-cgi/trace da 404, intentar con la URL principal
-          fetch(u.url, { method: "GET", cache: "no-cache" })
-            .then((mainResponse) => {
-              const mainResponseTime = Date.now() - startTime;
-              
-              if (mainResponse.ok || mainResponse.status === 404) {
-                setStatus((prevStatus) =>
-                  prevStatus.map((item, idx) =>
-                    idx === urlIndex ? { 
-                      ...item, 
-                      isDown: false, 
-                      downSince: null,
-                      statusCode: mainResponse.status,
-                      responseTime: mainResponseTime
-                    } : item
-                  )
-                );
-              } else {
-                // Error real del servidor (5xx, etc.)
-                setStatus((prevStatus) =>
-                  prevStatus.map((item, idx) => {
-                    if (idx === urlIndex) {
-                      return {
-                        ...item,
-                        isDown: true,
-                        downSince: item.isDown ? item.downSince : Date.now(),
-                        statusCode: mainResponse.status,
-                        responseTime: mainResponseTime
-                      };
-                    }
-                    return item;
-                  })
-                );
-              }
-            })
-            .catch((error) => {
-              const finalResponseTime = Date.now() - startTime;
-              setStatus((prevStatus) =>
-                prevStatus.map((item, idx) => {
-                  if (idx === urlIndex) {
-                    return {
-                      ...item,
-                      isDown: true,
-                      downSince: item.isDown ? item.downSince : Date.now(),
-                      statusCode: 0,
-                      responseTime: finalResponseTime
-                    };
-                  }
-                  return item;
-                })
-              );
-            });
-        } else {
-          // Error en trace endpoint (502, 503, etc.) - marcar como down
-          setStatus((prevStatus) =>
-            prevStatus.map((item, idx) => {
-              if (idx === urlIndex) {
-                return {
-                  ...item,
-                  isDown: true,
-                  downSince: item.isDown ? item.downSince : Date.now(),
-                  statusCode: response.status,
-                  responseTime: responseTime
-                };
-              }
-              return item;
-            })
-          );
-        }
-      })
-      .catch((error) => {
-        // Si falla el trace, intentar con la URL principal
-        fetch(u.url, { method: "GET", cache: "no-cache" })
-          .then((mainResponse) => {
-            const mainResponseTime = Date.now() - startTime;
-            
-            if (mainResponse.ok || mainResponse.status === 404) {
-              setStatus((prevStatus) =>
-                prevStatus.map((item, idx) =>
-                  idx === urlIndex ? { 
-                    ...item, 
-                    isDown: false, 
-                    downSince: null,
-                    statusCode: mainResponse.status,
-                    responseTime: mainResponseTime
-                  } : item
-                )
-              );
-            } else {
-              setStatus((prevStatus) =>
-                prevStatus.map((item, idx) => {
-                  if (idx === urlIndex) {
-                    return {
-                      ...item,
-                      isDown: true,
-                      downSince: item.isDown ? item.downSince : Date.now(),
-                      statusCode: mainResponse.status,
-                      responseTime: mainResponseTime
-                    };
-                  }
-                  return item;
-                })
-              );
+
+    // Primero intentamos la URL principal para obtener el código real del servicio
+    fetch(u.url, { method: "GET", cache: "no-cache" })
+      .then((mainResponse) => {
+        const mainResponseTime = Date.now() - startTime;
+
+        setStatus((prevStatus) =>
+          prevStatus.map((item, idx) => {
+            if (idx === urlIndex) {
+              const ok = mainResponse.ok; // 2xx
+              return {
+                ...item,
+                isDown: !ok, // 4xx/5xx cuentan como caído
+                downSince: ok ? null : (item.isDown ? item.downSince : Date.now()),
+                statusCode: mainResponse.status,
+                responseTime: mainResponseTime,
+              };
             }
+            return item;
           })
-          .catch((fallbackError) => {
-            const finalResponseTime = Date.now() - startTime;
+        );
+      })
+      .catch(() => {
+        // Si la URL principal falla (CORS, network), usar Cloudflare trace como verificación de alcance
+        const traceUrl = u.url.endsWith('/') ? u.url + 'cdn-cgi/trace' : u.url + '/cdn-cgi/trace';
+        fetch(traceUrl, { method: "GET", cache: "no-cache" })
+          .then((traceResponse) => {
+            const traceTime = Date.now() - startTime;
+
             setStatus((prevStatus) =>
               prevStatus.map((item, idx) => {
                 if (idx === urlIndex) {
+                  const reachable = traceResponse.ok; // normalmente 200 si Cloudflare responde
                   return {
                     ...item,
-                    isDown: true,
-                    downSince: item.isDown ? item.downSince : Date.now(),
-                    statusCode: 0,
-                    responseTime: finalResponseTime
+                    isDown: !reachable,
+                    downSince: reachable ? null : (item.isDown ? item.downSince : Date.now()),
+                    // No podemos conocer el código real del servicio por CORS; marcamos 0 si no reachable, 200 si trace OK
+                    statusCode: reachable ? 200 : traceResponse.status,
+                    responseTime: traceTime,
                   };
                 }
                 return item;
               })
+            );
+          })
+          .catch(() => {
+            const finalTime = Date.now() - startTime;
+            // Totalmente inaccesible
+            setStatus((prevStatus) =>
+              prevStatus.map((item, idx) => (
+                idx === urlIndex
+                  ? {
+                      ...item,
+                      isDown: true,
+                      downSince: item.isDown ? item.downSince : Date.now(),
+                      statusCode: 0,
+                      responseTime: finalTime,
+                    }
+                  : item
+              ))
             );
           });
       });
@@ -272,6 +176,17 @@ export default function Home() {
                 W
               </div>
               <span style={{ fontSize: "1.25rem", fontWeight: "600" }}>WPlace Status</span>
+              <div style={{
+                background: "linear-gradient(135deg, #059669, #047857)",
+                color: "white",
+                fontSize: "0.75rem",
+                fontWeight: "600",
+                padding: "0.25rem 0.5rem",
+                borderRadius: "6px",
+                letterSpacing: "0.05em",
+              }}>
+                v1.5
+              </div>
             </div>
                         <div style={{ fontSize: "0.875rem", color: "#94a3b8", textAlign: "right" }}>
               <div>Last updated: Today at {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}</div>
@@ -457,9 +372,6 @@ export default function Home() {
                         <p style={{ color: "#f87171", fontSize: "1rem", margin: "0 0 0.5rem 0", fontWeight: "500" }}>
                           ⚠️ Service disruption detected
                         </p>
-                        <p style={{ color: "#94a3b8", fontSize: "0.875rem", margin: 0 }}>
-                          Downtime duration: {getTimeAgo(s.downSince, currentTime)}
-                        </p>
                       </div>
                     )}
                   </div>
@@ -471,7 +383,7 @@ export default function Home() {
                         borderRadius: "8px",
                         fontWeight: "600",
                         fontSize: "0.875rem",
-                        background: s.statusCode === 200 || s.statusCode === 404
+                        background: s.statusCode === 200
                           ? "linear-gradient(135deg, #059669, #047857)" 
                           : s.statusCode === 0 || s.statusCode === 502 || s.statusCode === 503 || (s.statusCode && s.statusCode >= 500)
                           ? "linear-gradient(135deg, #dc2626, #b91c1c)"
@@ -485,7 +397,7 @@ export default function Home() {
                       }}
                     >
                       {s.statusCode === 200 ? "Online" : 
-                       s.statusCode === 404 ? "Protected" :
+                       s.statusCode === 404 ? "Not Found" :
                        s.statusCode === 502 ? "Bad Gateway" :
                        s.statusCode === 503 ? "Service Unavailable" :
                        s.statusCode === 0 ? "Connection Failed" :
@@ -519,126 +431,6 @@ export default function Home() {
             ))}
           </div>
         </main>
-
-        {/* Activity Heatmap Section */}
-        <section style={{ marginTop: "4rem" }}>
-          <h3 style={{ 
-            fontSize: "1.5rem", 
-            fontWeight: "700", 
-            color: "#f1f5f9", 
-            marginBottom: "2rem",
-            textAlign: "center"
-          }}>
-            Service Activity • Last 90 days
-          </h3>
-          
-          {status.map((service, serviceIndex) => (
-            <div key={service.name} style={{ marginBottom: "3rem" }}>
-              <h4 style={{ 
-                fontSize: "1.1rem", 
-                fontWeight: "600", 
-                color: "#e2e8f0", 
-                marginBottom: "1rem" 
-              }}>
-                {service.name}
-              </h4>
-              
-              <div style={{ 
-                display: "grid", 
-                gridTemplateColumns: "repeat(13, 1fr)", 
-                gap: "3px",
-                background: "linear-gradient(135deg, #1e293b, #334155)",
-                padding: "1.5rem",
-                borderRadius: "12px",
-                border: "1px solid rgba(148, 163, 184, 0.1)",
-              }}>
-                {Array.from({ length: 91 }, (_, dayIndex) => {
-                  // Simular datos de uptime aleatorios pero realistas
-                  const date = new Date();
-                  date.setDate(date.getDate() - (90 - dayIndex));
-                  
-                  // Generar un valor de uptime basado en el servicio y fecha
-                  const seed = serviceIndex * 1000 + dayIndex;
-                  const random = Math.sin(seed) * 0.5 + 0.5; // 0-1
-                  
-                  let uptimeLevel;
-                  let backgroundColor;
-                  let title;
-                  
-                  if (service.isDown && dayIndex === 90) {
-                    // Día actual si está caído
-                    uptimeLevel = 0;
-                    backgroundColor = "#dc2626";
-                    title = `${date.toDateString()}: HTTP 502 - Bad Gateway`;
-                  } else if (random > 0.95) {
-                    // 5% de días con problemas
-                    uptimeLevel = Math.floor(random * 3);
-                    if (uptimeLevel === 0) {
-                      backgroundColor = "#dc2626";
-                      title = `${date.toDateString()}: HTTP 500 - Internal Server Error`;
-                    } else if (uptimeLevel === 1) {
-                      backgroundColor = "#f59e0b";
-                      title = `${date.toDateString()}: HTTP 503 - Service Unavailable`;
-                    } else {
-                      backgroundColor = "#84cc16";
-                      title = `${date.toDateString()}: HTTP 200 - OK (Slow response)`;
-                    }
-                  } else {
-                    // 95% días operativos
-                    uptimeLevel = 4;
-                    backgroundColor = "#10b981";
-                    title = `${date.toDateString()}: HTTP 200 - OK`;
-                  }
-                  
-                  return (
-                    <div
-                      key={dayIndex}
-                      title={title}
-                      style={{
-                        width: "12px",
-                        height: "12px",
-                        backgroundColor,
-                        borderRadius: "2px",
-                        cursor: "pointer",
-                        transition: "all 0.2s ease",
-                        opacity: uptimeLevel === 4 ? 1 : 0.7 + (uptimeLevel * 0.1),
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = "scale(1.2)";
-                        e.currentTarget.style.opacity = "1";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "scale(1)";
-                        e.currentTarget.style.opacity = uptimeLevel === 4 ? "1" : String(0.7 + (uptimeLevel * 0.1));
-                      }}
-                    />
-                  );
-                })}
-              </div>
-              
-              <div style={{ 
-                display: "flex", 
-                justifyContent: "space-between", 
-                alignItems: "center",
-                marginTop: "1rem",
-                fontSize: "0.75rem",
-                color: "#94a3b8"
-              }}>
-                <span>90 days ago</span>
-                <div style={{ display: "flex", gap: "2px", alignItems: "center" }}>
-                  <span style={{ marginRight: "8px" }}>Less</span>
-                  <div style={{ width: "10px", height: "10px", backgroundColor: "#374151", borderRadius: "2px" }} title="No data" />
-                  <div style={{ width: "10px", height: "10px", backgroundColor: "#10b981", borderRadius: "2px" }} title="HTTP 200 - OK" />
-                  <div style={{ width: "10px", height: "10px", backgroundColor: "#84cc16", borderRadius: "2px" }} title="HTTP 200 - Slow" />
-                  <div style={{ width: "10px", height: "10px", backgroundColor: "#f59e0b", borderRadius: "2px" }} title="HTTP 503 - Unavailable" />
-                  <div style={{ width: "10px", height: "10px", backgroundColor: "#dc2626", borderRadius: "2px" }} title="HTTP 500/502 - Error" />
-                  <span style={{ marginLeft: "8px" }}>More</span>
-                </div>
-                <span>Today</span>
-              </div>
-            </div>
-          ))}
-        </section>
 
         {/* Statistics Section */}
         <section style={{ marginTop: "4rem", textAlign: "center" }}>
@@ -693,9 +485,12 @@ export default function Home() {
           borderTop: "1px solid rgba(148, 163, 184, 0.1)",
           color: "#64748b" 
         }}>
+          <p style={{ fontSize: "0.875rem", marginBottom: "0.5rem" }}>
+            © 2025 <span style={{ color: "#3b82f6", fontWeight: "600" }}>Izan</span>. All rights reserved.
+          </p>
           <p style={{ fontSize: "0.875rem" }}>
-            Developed by <span style={{ color: "#3b82f6", fontWeight: "600" }}>Izan</span> • 
-            Monitoring infrastructure 24/7
+            Built with <span style={{ color: "#3b82f6", fontWeight: "600" }}>Next.js</span> • 
+            Designed & developed with <span style={{ color: "#ef4444" }}>❤️</span>
           </p>
         </footer>
       </div>
