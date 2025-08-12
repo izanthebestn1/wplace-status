@@ -14,6 +14,8 @@ type ServiceState = {
   downSince: number | null;
   statusCode: number | null;
   responseTime: number;
+  dns?: { addresses?: Array<{ address: string; family: number }>; error?: string };
+  tls?: { daysRemaining?: number | null; validFrom?: string; validTo?: string; issuer?: string; subject?: string; error?: string };
 };
 
 export default function Home() {
@@ -22,6 +24,8 @@ export default function Home() {
   );
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [daily, setDaily] = useState<Record<string, Array<{ date: string; total: number; up: number; ratio: number | null }>>>({});
+  const [history, setHistory] = useState<Record<string, Array<{ timestamp: number; statusCode: number; responseTime: number; isDown: boolean }>>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   // Persist state (optional UX)
   useEffect(() => {
@@ -45,7 +49,7 @@ export default function Home() {
         cache: "no-store",
       });
       const data = await res.json();
-  const results: Array<{ name: string; url: string; statusCode: number; responseTime: number; isDown: boolean; tls?: { daysRemaining?: number | null } }>
+  const results: Array<{ name: string; url: string; statusCode: number; responseTime: number; isDown: boolean; dns?: { addresses?: Array<{ address: string; family: number }>; error?: string }; tls?: { daysRemaining?: number | null; validFrom?: string; validTo?: string; issuer?: string; subject?: string; error?: string } }>
         = data.results || [];
       setStatus((prev) => prev.map((item) => {
         const r = results.find((x) => x.url === item.url);
@@ -56,9 +60,8 @@ export default function Home() {
           downSince: r.isDown ? (item.isDown ? item.downSince : Date.now()) : null,
           statusCode: r.statusCode,
           responseTime: r.responseTime,
-          // keep tls days for quick display
-          // @ts-ignore
-          tls: r.tls
+          dns: r.dns,
+          tls: r.tls,
         };
       }));
       setLastUpdated(Date.now());
@@ -68,6 +71,22 @@ export default function Home() {
         const dRes = await fetch(`/api/daily?days=30&${params}`, { cache: 'no-store' });
         const dJson = await dRes.json();
         setDaily(dJson.summary || {});
+      } catch {}
+      // fetch latest history for each url (best-effort)
+      try {
+        const entries = await Promise.all(urls.map(async (u) => {
+          try {
+            const hRes = await fetch(`/api/history?url=${encodeURIComponent(u.url)}`, { cache: 'no-store' });
+            const hJson = await hRes.json();
+            const arr = Array.isArray(hJson.data) ? hJson.data : [];
+            return [u.url, arr] as const;
+          } catch {
+            return [u.url, []] as const;
+          }
+        }));
+        const map: Record<string, Array<{ timestamp: number; statusCode: number; responseTime: number; isDown: boolean }>> = {};
+        for (const [k, v] of entries) map[k] = v;
+        setHistory(map);
       } catch {}
     } catch {
       setStatus((prev) => prev.map((item) => ({
@@ -81,7 +100,7 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const t = setTimeout(() => checkStatus(), 500);
+    const t = setTimeout(() => checkStatus(), 300);
     const i = setInterval(() => checkStatus(), 30000);
     return () => { clearTimeout(t); clearInterval(i); };
   }, []);
@@ -103,26 +122,38 @@ export default function Home() {
               <span style={{ fontSize: "1.25rem", fontWeight: 600 }}>WPlace Status</span>
               <div style={{ background: "linear-gradient(135deg, #059669, #047857)", color: "white", fontSize: 12, fontWeight: 700, padding: "0.25rem 0.5rem", borderRadius: 6, letterSpacing: "0.05em" }}>v1.6</div>
             </div>
-            <div style={{ fontSize: 14, color: "#94a3b8" }}>Last updated: {lastUpdated ? new Date(lastUpdated).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}</div>
+            <div style={{ color: "#94a3b8", fontSize: 14 }}>Last updated: {lastUpdated ? new Date(lastUpdated).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}</div>
           </div>
         </div>
       </nav>
+
+  {/* Terms gate overlay removed per request */}
 
       {/* Header */}
       <header style={{ textAlign: "center", padding: "2.5rem 2rem 1rem" }}>
         <h1 style={{ fontSize: "2.25rem", fontWeight: 800, margin: 0, background: "linear-gradient(135deg, #f1f5f9, #cbd5e1)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>WPlace Status Dashboard</h1>
         <p style={{ marginTop: 10, color: "#94a3b8" }}>Real-time status of WPlace</p>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: "0.75rem 1.25rem", background: anyDown ? "linear-gradient(135deg, #dc2626, #b91c1c)" : "linear-gradient(135deg, #059669, #047857)", color: "white", borderRadius: 10, fontWeight: 700, marginTop: 14 }}>
-          <div style={{ width: 10, height: 10, borderRadius: "50%", background: "rgba(255,255,255,0.9)", animation: anyDown ? "none" : "pulse 2s infinite" }} />
-          {anyDown ? "Service Issues Detected" : "All Systems Operational"}
+        <div style={{ marginTop: 12, display: 'inline-flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: anyDown ? '#ef4444' : '#10b981', background: anyDown ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)', border: `1px solid ${anyDown ? 'rgba(248,113,113,0.25)' : 'rgba(16,185,129,0.25)'}`, padding: '0.25rem 0.6rem', borderRadius: 999 }}>
+            {anyDown ? 'Service Issues Detected' : 'All Systems Operational'}
+          </span>
+          {sorted.map(s => (
+            <span key={'pill-'+s.url} style={{ fontSize: 12, color: s.isDown ? '#ef4444' : '#10b981', background: s.isDown ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)', border: `1px solid ${s.isDown ? 'rgba(248,113,113,0.25)' : 'rgba(16,185,129,0.25)'}`, padding: '0.25rem 0.6rem', borderRadius: 999 }}>
+              {s.name}: {s.isDown ? 'Down' : 'Up'}
+            </span>
+          ))}
+          <span style={{ fontSize: 12, color: '#94a3b8', background: 'rgba(148,163,184,0.12)', border: '1px solid rgba(148,163,184,0.25)', padding: '0.25rem 0.6rem', borderRadius: 999 }}>
+            Online: {status.filter(s=>!s.isDown).length}/{status.length}
+          </span>
         </div>
       </header>
 
+
       {/* Services */}
       <main style={{ maxWidth: 1200, margin: "0 auto", padding: "1.5rem 2rem 2rem" }}>
-        <div style={{ display: "grid", gap: "1rem" }}>
+        <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))" }}>
           {sorted.map((s) => (
-            <div key={s.url} style={{ background: "linear-gradient(135deg, #0b1220, #172036)", borderRadius: 12, padding: "1.1rem 1.25rem", border: "1px solid rgba(148,163,184,0.1)", position: "relative", overflow: "hidden", boxShadow: "0 10px 20px rgba(0,0,0,0.25)" }}>
+            <div key={s.url} style={{ background: "linear-gradient(135deg, #0b1220, #172036)", borderRadius: 12, padding: "1rem 1.1rem", border: "1px solid rgba(148,163,184,0.1)", position: "relative", overflow: "hidden", boxShadow: "0 10px 20px rgba(0,0,0,0.25)" }}>
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: s.isDown ? "linear-gradient(90deg, #dc2626, #f59e0b)" : "linear-gradient(90deg, #10b981, #3b82f6)" }} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -159,19 +190,49 @@ export default function Home() {
                   </span>
                 </div>
                 {'tls' in s && (s as any).tls && typeof (s as any).tls?.daysRemaining !== 'undefined' && (
-                  <div style={{ background: "rgba(148,163,184,0.08)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(148,163,184,0.2)" }}>
+                  <div
+                    style={{ background: "rgba(148,163,184,0.08)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(148,163,184,0.2)" }}
+                    title={(() => {
+                      const t: any = (s as any).tls || {};
+                      const parts: string[] = [];
+                      if (typeof t.daysRemaining === 'number') parts.push(`${t.daysRemaining} days remaining`);
+                      if (t.validTo) parts.push(`valid to: ${t.validTo}`);
+                      if (t.issuer) parts.push(`issuer: ${t.issuer}`);
+                      return parts.join('\n') || 'SSL info';
+                    })()}
+                  >
                     <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>SSL</span>
                     <span style={{ color: ((s as any).tls?.daysRemaining ?? 0) > 14 ? "#10b981" : ((s as any).tls?.daysRemaining ?? 0) > 3 ? "#f59e0b" : "#dc2626", fontSize: 14, fontWeight: 700 }}>
                       {typeof (s as any).tls?.daysRemaining === 'number' ? `${(s as any).tls?.daysRemaining} days left` : 'Unknown'}
                     </span>
                   </div>
                 )}
-                {s.isDown && (
-                  <div style={{ background: "rgba(239,68,68,0.12)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(248,113,113,0.25)", color: "#f87171" }}>
-                    ⚠️ Service disruption detected
+                {('dns' in s) && (s as any).dns && (
+                  <div style={{ background: "rgba(148,163,184,0.08)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(148,163,184,0.2)" }}
+                       title={(s as any).dns?.addresses?.map((a: any) => `${a.address} (IPv${a.family})`).join('\n') || (s as any).dns?.error || 'DNS info'}>
+                    <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>DNS</span>
+                    <span style={{ color: "#e2e8f0", fontSize: 14, fontWeight: 700 }}>
+                      {(() => {
+                        const d: any = (s as any).dns;
+                        const first = d?.addresses?.[0];
+                        if (first) return `${first.address} (IPv${first.family})`;
+                        if (d?.error) return `Error`;
+                        return '—';
+                      })()}
+                    </span>
                   </div>
                 )}
-                <div style={{ marginLeft: "auto" }}>
+                {s.isDown && (
+                  <div style={{ background: "rgba(239,68,68,0.12)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(248,113,113,0.25)", color: "#f87171" }}>
+                    ⚠️ Service disruption detected{typeof s.downSince === 'number' ? ` • ${Math.floor((Date.now() - s.downSince) / 1000)}s` : ''}
+                  </div>
+                )}
+                <div style={{ marginLeft: "auto", display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => setExpanded(e => ({ ...e, [s.url]: !e[s.url] }))}
+                    style={{ background: 'linear-gradient(135deg, #374151, #1f2937)', color: '#e5e7eb', fontWeight: 700, border: '1px solid rgba(148,163,184,0.2)', padding: '0.4rem 0.7rem', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}
+                    aria-expanded={!!expanded[s.url]}
+                  >{expanded[s.url] ? 'Hide details' : 'Details'}</button>
                   <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: "#93c5fd", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>Visit Service →</a>
                 </div>
               </div>
@@ -192,38 +253,177 @@ export default function Home() {
                   )
                 })}
               </div>
+              {/* 7d & 30d uptime summary */}
+              <div style={{ marginTop: 8, color: '#94a3b8', fontSize: 12, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {(() => {
+                  const arr = daily[s.url] || [];
+                  // 7d
+                  let up7 = 0, total7 = 0;
+                  for (const d of arr.slice(0, 7)) { up7 += d.up; total7 += d.total; }
+                  const r7 = total7 > 0 ? up7 / total7 : null;
+                  // 30d
+                  let up30 = 0, total30 = 0;
+                  for (const d of arr) { up30 += d.up; total30 += d.total; }
+                  const r30 = total30 > 0 ? up30 / total30 : null;
+                  return (
+                    <>
+                      <span>7d uptime: {r7 === null ? '—' : (r7 * 100).toFixed(r7 >= 0.999 ? 3 : 2) + '%'}</span>
+                      <span>30d uptime: {r30 === null ? '—' : (r30 * 100).toFixed(r30 >= 0.999 ? 3 : 2) + '%'}</span>
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* Details panel */}
+              {expanded[s.url] && (
+                <div style={{ marginTop: 12, padding: '0.9rem 1rem', borderRadius: 10, background: 'rgba(148,163,184,0.06)', border: '1px solid rgba(148,163,184,0.15)' }}>
+                  <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+                    <div>
+                      <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 4 }}>DNS Records</div>
+                      <div style={{ color: '#e2e8f0', fontSize: 13 }}>
+                        {s.dns?.addresses?.length ? (
+                          <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                            {s.dns.addresses.map((a, i) => (
+                              <li key={a.address + i} style={{ margin: '2px 0' }}>{a.address} (IPv{a.family})</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span>{s.dns?.error ? `Error: ${s.dns.error}` : '—'}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 4 }}>TLS Certificate</div>
+                      <div style={{ color: '#e2e8f0', fontSize: 13 }}>
+                        {s.tls ? (
+                          <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                            {s.tls.subject && <li>Subject: {s.tls.subject}</li>}
+                            {s.tls.issuer && <li>Issuer: {s.tls.issuer}</li>}
+                            {s.tls.validFrom && <li>Valid from: {s.tls.validFrom}</li>}
+                            {s.tls.validTo && <li>Valid to: {s.tls.validTo}</li>}
+                            {typeof s.tls.daysRemaining === 'number' && <li>Days remaining: {s.tls.daysRemaining}</li>}
+                            {s.tls.error && <li>Error: {s.tls.error}</li>}
+                          </ul>
+                        ) : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 4 }}>Recent Checks</div>
+                      <div style={{ color: '#e2e8f0', fontSize: 13 }}>
+                        {(history[s.url] || []).length ? (
+                          <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                            {(history[s.url] || []).slice(-10).reverse().map((h, idx) => (
+                              <li key={(h.timestamp || 0) + '-' + idx}>
+                                {new Date(h.timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                — HTTP {h.statusCode} — {h.responseTime}ms — {h.isDown ? 'DOWN' : 'UP'}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : '—'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
       </main>
 
-      {/* Quick Stats */}
-      <section style={{ marginTop: 24, padding: "0 2rem" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
-            <div style={{ background: "linear-gradient(135deg, #0b1220, #172036)", padding: 18, borderRadius: 12, border: "1px solid rgba(148,163,184,0.1)" }}>
-              <div style={{ fontSize: 28, fontWeight: 800, color: "#10b981", marginBottom: 6 }}>{status.filter((s) => !s.isDown).length}/{status.length}</div>
-              <div style={{ color: "#94a3b8", fontSize: 14 }}>Services Online</div>
-            </div>
-            <div style={{ background: "linear-gradient(135deg, #0b1220, #172036)", padding: 18, borderRadius: 12, border: "1px solid rgba(148,163,184,0.1)" }}>
-              <div style={{ fontSize: 28, fontWeight: 800, color: "#f59e0b", marginBottom: 6 }}>30s</div>
-              <div style={{ color: "#94a3b8", fontSize: 14 }}>Check Interval</div>
-            </div>
-          </div>
-        </div>
-      </section>
+  {/* Incidents */}
+  <IncidentsSection />
 
-      <footer style={{ textAlign: "center", marginTop: 40, padding: "24px 0", borderTop: "1px solid rgba(148, 163, 184, 0.1)", color: "#64748b" }}>
-        <p style={{ margin: 0, marginBottom: 8, fontSize: 12, color: "#94a3b8" }}>
-          Disclaimer: this is not an official <a href="https://wplace.live/" target="_blank" rel="noopener noreferrer" style={{ color: "#93c5fd", textDecoration: "none" }}>wplace.live</a> page. wplace.live owns the rights to the favicon.
-        </p>
-        <p style={{ margin: 0, fontSize: 14 }}>© 2025 <a href="https://guns.lol/izan" target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6", fontWeight: 600, textDecoration: "none" }}>Izan</a>. All rights reserved.</p>
+  <footer style={{ textAlign: "center", marginTop: 40, padding: "24px 0", borderTop: "1px solid rgba(148, 163, 184, 0.1)", color: "#64748b" }}>
+        <p style={{ margin: 0, fontSize: 14 }}>Crafted by <a href="https://guns.lol/izan" target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6", fontWeight: 600, textDecoration: "none" }}>Izan</a> — 2025</p>
         <p style={{ margin: "6px 0 0", fontSize: 14 }}>Built with <span style={{ color: "#3b82f6", fontWeight: 600 }}>Next.js</span> • Designed & developed with <span style={{ color: "#ef4444" }}>❤️</span></p>
+        <p style={{ margin: "6px 0 0", fontSize: 14 }}>
+          <a href="/terms" style={{ color: "#93c5fd", textDecoration: "none", fontWeight: 600 }}>Terms of Service</a>
+        </p>
       </footer>
 
       <style jsx global>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
       `}</style>
     </div>
+  );
+}
+
+type Inc = {
+  id: string;
+  title: string;
+  description?: string;
+  severity: 'minor' | 'major' | 'critical';
+  status: 'investigating' | 'identified' | 'monitoring' | 'resolved';
+  createdAt: number;
+  updatedAt: number;
+  affectedUrls?: string[];
+};
+
+function IncidentsSection() {
+  const [incidents, setIncidents] = React.useState<Inc[]>([]);
+  React.useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const res = await fetch('/api/incidents', { cache: 'no-store' });
+        const json = await res.json();
+        if (mounted) setIncidents(Array.isArray(json.incidents) ? json.incidents : []);
+      } catch {}
+    };
+    load();
+    const i = setInterval(load, 60000);
+    return () => { mounted = false; clearInterval(i); };
+  }, []);
+
+  const colorFor = (sev: Inc['severity']) => sev === 'critical' ? '#ef4444' : sev === 'major' ? '#f59e0b' : '#10b981';
+
+  return (
+    <section style={{ marginTop: 12, padding: '0 2rem' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <h3 style={{ margin: '0 0 8px', color: '#e2e8f0', fontSize: '1rem', fontWeight: 700 }}>Incidents</h3>
+        <div style={{ background: 'linear-gradient(135deg, #0b1220, #172036)', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 12, padding: '0.9rem 1rem' }}>
+          <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 10 }}>
+            {/* Pinned: Latest official update (from Discord announcements) */}
+            <li style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr auto' }}>
+              <div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 700, color: '#e2e8f0' }}>Official update <span style={{ color: '#94a3b8', fontWeight: 600 }}>(from Discord announcements)</span></span>
+                  <span style={{ fontSize: 12, color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', padding: '0.1rem 0.4rem', borderRadius: 999 }}>major</span>
+                  <span style={{ fontSize: 12, color: '#94a3b8', border: '1px solid rgba(148,163,184,0.25)', padding: '0.1rem 0.4rem', borderRadius: 999 }}>informational</span>
+                </div>
+                <div style={{ color: '#cbd5e1', fontSize: 13, marginTop: 4, lineHeight: 1.6 }}>
+                  <p style={{ margin: '0 0 6px' }}>Dear community, we've already seen the current Nginx internal server code 500 issue, and we're already working on a solution as quickly as possible. @Wplace and I have been coding non-stop for 24 hours to address all current issues. We addressed the session issue previously, along with minor changes that will help in the future, and we believe it will no longer occur. We migrated the server to higher capacity, and now, when we had a break from the session issue, the current server couldn't handle the number of requests during this peak period.</p>
+                  <p style={{ margin: '0 0 6px' }}>We've upgraded our servers four times, and even then, they couldn't handle the number of users we were experiencing. We apologize again for the inconvenience, and we're currently migrating to an environment with even more capacity. Unfortunately, this isn't a quick process, but it will be resolved soon.</p>
+                  <p style={{ margin: 0 }}>We will migrate to a multi-server architecture soon, but it's not currently possible because we need to implement changes to our code. We don't plan to keep you waiting any longer. We will now migrate to another provider with greater capacity to gain the breathing room to migrate to a more scalable solution.</p>
+                </div>
+              </div>
+              <div style={{ color: '#94a3b8', fontSize: 12, textAlign: 'right' }}>Aug 10, 2025 • 16:25 • CX [BAPO]</div>
+            </li>
+            {(incidents.length === 0) ? (
+              <li style={{ color: '#94a3b8', fontSize: 14 }}>No additional incidents reported.</li>
+            ) : (
+              incidents.map((inc) => (
+                <li key={inc.id} style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr auto' }}>
+                  <div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 700, color: '#e2e8f0' }}>{inc.title}</span>
+                      <span style={{ fontSize: 12, color: colorFor(inc.severity), border: `1px solid ${colorFor(inc.severity)}40`, padding: '0.1rem 0.4rem', borderRadius: 999, background: 'transparent' }}>{inc.severity}</span>
+                      <span style={{ fontSize: 12, color: '#94a3b8', border: '1px solid rgba(148,163,184,0.25)', padding: '0.1rem 0.4rem', borderRadius: 999 }}>{inc.status}</span>
+                    </div>
+                    {inc.description && <div style={{ color: '#cbd5e1', fontSize: 13, marginTop: 4 }}>{inc.description}</div>}
+                    {inc.affectedUrls?.length ? (
+                      <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>Affected: {inc.affectedUrls.join(', ')}</div>
+                    ) : null}
+                  </div>
+                  <div style={{ color: '#94a3b8', fontSize: 12, textAlign: 'right' }}>
+                    Updated {new Date(inc.updatedAt).toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })}
+                  </div>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      </div>
+    </section>
   );
 }
