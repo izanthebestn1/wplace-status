@@ -29,6 +29,17 @@ export default function Alicante() {
         >
           Unirse a Discord 🚀
         </a>
+        {/* Discord Widget */}
+        <div className="mt-4 rounded-xl overflow-hidden shadow-2xl" style={{ background: 'rgba(0,0,0,0.25)' }}>
+          <iframe
+            src="https://discord.com/widget?id=1404763764238319616&theme=dark"
+            width="350"
+            height="500"
+            style={{ border: '0', borderRadius: 12 }}
+            frameBorder={0}
+            sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+          />
+        </div>
       </div>
     </div>
   );
