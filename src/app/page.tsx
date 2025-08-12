@@ -142,7 +142,7 @@ export default function Home() {
 
   useEffect(() => {
     const t = setTimeout(() => checkStatus(), 300);
-    const i = setInterval(() => checkStatus(), 30000);
+  const i = setInterval(() => checkStatus(), 15000);
     return () => { clearTimeout(t); clearInterval(i); };
   }, []);
 
