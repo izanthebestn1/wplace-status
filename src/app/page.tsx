@@ -2,6 +2,45 @@
 
 import React, { useEffect, useState } from "react";
 
+// Convert Go-style duration strings (e.g., "3h52m2.010474413s", "45m13s", "532ms") to a nicer short form
+function prettyUptime(raw?: string): string {
+  if (!raw || typeof raw !== 'string') return '—';
+  // Match all unit-number pairs (h, m, s, ms, us/µs, ns)
+  const re = /(\d+(?:\.\d+)?)(h|m|s|ms|us|µs|ns)/g;
+  let match: RegExpExecArray | null;
+  let totalMs = 0;
+  while ((match = re.exec(raw)) !== null) {
+    const val = parseFloat(match[1]);
+    const unit = match[2];
+    if (Number.isNaN(val)) continue;
+    switch (unit) {
+      case 'h': totalMs += val * 3600000; break;
+      case 'm': totalMs += val * 60000; break;
+      case 's': totalMs += val * 1000; break;
+      case 'ms': totalMs += val; break;
+      case 'us':
+      case 'µs': totalMs += val / 1000; break;
+      case 'ns': totalMs += val / 1_000_000; break;
+    }
+  }
+  if (totalMs <= 0) return raw; // fallback if we couldn't parse
+
+  const totalSeconds = Math.floor(totalMs / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const parts: string[] = [];
+  if (days) parts.push(`${days}d`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+  if (!days && (seconds || (!hours && !minutes))) parts.push(`${seconds}s`);
+
+  // Limit to 3 components for readability (e.g., 3h 52m 2s)
+  return parts.slice(0, 3).join(' ');
+}
+
 const urls = [
   { name: "Frontend", url: "https://wplace.live/" },
   { name: "Backend", url: "https://backend.wplace.live/" },
@@ -192,52 +231,20 @@ export default function Home() {
                     {s.responseTime === 0 ? "Checking..." : `${s.responseTime}ms`}
                   </span>
                 </div>
-                {'tls' in s && (s as any).tls && typeof (s as any).tls?.daysRemaining !== 'undefined' && (
-                  <div
-                    style={{ background: "rgba(255,255,255,0.06)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}
-                    title={(() => {
-                      const t: any = (s as any).tls || {};
-                      const parts: string[] = [];
-                      if (typeof t.daysRemaining === 'number') parts.push(`${t.daysRemaining} days remaining`);
-                      if (t.validTo) parts.push(`valid to: ${t.validTo}`);
-                      if (t.issuer) parts.push(`issuer: ${t.issuer}`);
-                      return parts.join('\n') || 'SSL info';
-                    })()}
-                  >
-                    <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>SSL</span>
-                    <span style={{ color: ((s as any).tls?.daysRemaining ?? 0) > 14 ? "#10b981" : ((s as any).tls?.daysRemaining ?? 0) > 3 ? "#f59e0b" : "#dc2626", fontSize: 14, fontWeight: 700 }}>
-                      {typeof (s as any).tls?.daysRemaining === 'number' ? `${(s as any).tls?.daysRemaining} days left` : 'Unknown'}
-                    </span>
-                  </div>
-                )}
-                {('dns' in s) && (s as any).dns && (
-                  <div style={{ background: "rgba(255,255,255,0.06)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}
-                       title={(s as any).dns?.addresses?.map((a: any) => `${a.address} (IPv${a.family})`).join('\n') || (s as any).dns?.error || 'DNS info'}>
-                    <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>DNS</span>
-                    <span style={{ color: "#e2e8f0", fontSize: 14, fontWeight: 700 }}>
-                      {(() => {
-                        const d: any = (s as any).dns;
-                        const first = d?.addresses?.[0];
-                        if (first) return `${first.address} (IPv${first.family})`;
-                        if (d?.error) return `Error`;
-                        return '—';
-                      })()}
-                    </span>
-                  </div>
-                )}
+                {/* SSL and DNS boxes removed by request */}
                 {/* Backend-only health metrics */}
                 {s.name === 'Backend' && (s as any).health && (
                   <>
                     <div style={{ background: "rgba(255,255,255,0.06)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}>
-                      <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>DB</span>
+                      <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>Data Base</span>
                       <span style={{ color: (s as any).health?.database ? '#10b981' : '#ef4444', fontSize: 14, fontWeight: 700 }}>
                         {(s as any).health?.database ? 'Connected' : 'Down'}
                       </span>
                     </div>
-                    <div style={{ background: "rgba(255,255,255,0.06)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ background: "rgba(255,255,255,0.06)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}>
                       <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>Uptime</span>
                       <span style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 700 }}>
-                        {(s as any).health?.uptime || '—'}
+            {prettyUptime((s as any).health?.uptime)}
                       </span>
                     </div>
                   </>
@@ -253,7 +260,6 @@ export default function Home() {
                     style={{ background: 'linear-gradient(135deg, #232323, #1a1a1a)', color: '#e5e7eb', fontWeight: 700, border: '1px solid rgba(255,255,255,0.08)', padding: '0.4rem 0.7rem', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}
                     aria-expanded={!!expanded[s.url]}
                   >{expanded[s.url] ? 'Hide details' : 'Details'}</button>
-                  <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: "#93c5fd", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>Visit Service →</a>
                 </div>
               </div>
 
@@ -297,36 +303,7 @@ export default function Home() {
               {/* Details panel */}
               {expanded[s.url] && (
                 <div style={{ marginTop: 12, padding: '0.9rem 1rem', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-                    <div>
-                      <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 4 }}>DNS Records</div>
-                      <div style={{ color: '#e2e8f0', fontSize: 13 }}>
-                        {s.dns?.addresses?.length ? (
-                          <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-                            {s.dns.addresses.map((a, i) => (
-                              <li key={a.address + i} style={{ margin: '2px 0' }}>{a.address} (IPv{a.family})</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <span>{s.dns?.error ? `Error: ${s.dns.error}` : '—'}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 4 }}>TLS Certificate</div>
-                      <div style={{ color: '#e2e8f0', fontSize: 13 }}>
-                        {s.tls ? (
-                          <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-                            {s.tls.subject && <li>Subject: {s.tls.subject}</li>}
-                            {s.tls.issuer && <li>Issuer: {s.tls.issuer}</li>}
-                            {s.tls.validFrom && <li>Valid from: {s.tls.validFrom}</li>}
-                            {s.tls.validTo && <li>Valid to: {s.tls.validTo}</li>}
-                            {typeof s.tls.daysRemaining === 'number' && <li>Days remaining: {s.tls.daysRemaining}</li>}
-                            {s.tls.error && <li>Error: {s.tls.error}</li>}
-                          </ul>
-                        ) : '—'}
-                      </div>
-                    </div>
+                  <div style={{ display: 'grid', gap: 10, gridTemplateColumns: '1fr' }}>
                     <div>
                       <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 4 }}>Recent Checks</div>
                       <div style={{ color: '#e2e8f0', fontSize: 13 }}>

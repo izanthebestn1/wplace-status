@@ -1,15 +1,15 @@
 export default function Terms() {
   const sectionStyle: React.CSSProperties = {
-    background: 'linear-gradient(135deg, #0b1220, #172036)',
+  background: 'linear-gradient(135deg, #0d0d0d, #161616)',
     borderRadius: 12,
     padding: '1rem 1.25rem',
-    border: '1px solid rgba(148,163,184,0.1)'
+  border: '1px solid rgba(255,255,255,0.06)'
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0a0f1c', color: '#e2e8f0', fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+  <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e2e8f0', fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <nav style={{
-        background: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
+    background: 'rgba(10,10,10,0.85)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(255,255,255,0.06)',
         padding: '1rem 0', position: 'sticky', top: 0, zIndex: 10,
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 2rem', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -92,7 +92,7 @@ export default function Terms() {
         </div>
       </main>
 
-      <footer style={{ textAlign: 'center', marginTop: 10, padding: '16px 0', borderTop: '1px solid rgba(148, 163, 184, 0.1)', color: '#64748b' }}>
+  <footer style={{ textAlign: 'center', marginTop: 10, padding: '16px 0', borderTop: '1px solid rgba(255,255,255,0.06)', color: '#8b93a3' }}>
         <p style={{ margin: 0, fontSize: 14 }}>© 2025 <a href="https://guns.lol/izan" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', fontWeight: 600, textDecoration: 'none' }}>Izan</a>. All rights reserved.</p>
       </footer>
     </div>
