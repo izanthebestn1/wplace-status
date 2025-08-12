@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+# WPlace Status
 
-First, run the development server:
+This project displays the real-time status of the main WPlace services.
 
+## What is it?
+A web page that automatically checks if WPlace services are online or down, showing how long any outage has lasted. The design is modern, with a dark background and visually pleasant style.
+
+- **Main page:** Shows the status of services (Backend and Frontend).
+- **Route /alicante:** Informational page and access to the WPlace Alicante Discord.
+
+## Technologies
+- Next.js
+- React
+- TypeScript
+
+## How does it work?
+Every 30 seconds, the page checks if the services are online. If any are down, it shows how long the outage has lasted.
+
+## Deployment
+The site is ready to be published as a static page on GitHub Pages.
+
+## Installation & Development
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Export for GitHub Pages
+```bash
+npm run build
+npm run export
+```
+Rename the `out` folder to `docs` and push the changes to your repository.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## License
+MIT
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+Created by izanthebestn1 for the WPlace community.
