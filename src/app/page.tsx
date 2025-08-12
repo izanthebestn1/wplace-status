@@ -16,6 +16,7 @@ type ServiceState = {
   responseTime: number;
   dns?: { addresses?: Array<{ address: string; family: number }>; error?: string };
   tls?: { daysRemaining?: number | null; validFrom?: string; validTo?: string; issuer?: string; subject?: string; error?: string };
+  health?: { up?: boolean; database?: boolean; uptime?: string };
 };
 
 export default function Home() {
@@ -49,7 +50,7 @@ export default function Home() {
         cache: "no-store",
       });
       const data = await res.json();
-  const results: Array<{ name: string; url: string; statusCode: number; responseTime: number; isDown: boolean; dns?: { addresses?: Array<{ address: string; family: number }>; error?: string }; tls?: { daysRemaining?: number | null; validFrom?: string; validTo?: string; issuer?: string; subject?: string; error?: string } }>
+  const results: Array<{ name: string; url: string; statusCode: number; responseTime: number; isDown: boolean; dns?: { addresses?: Array<{ address: string; family: number }>; error?: string }; tls?: { daysRemaining?: number | null; validFrom?: string; validTo?: string; issuer?: string; subject?: string; error?: string }; health?: { up?: boolean; database?: boolean; uptime?: string } }>
         = data.results || [];
       setStatus((prev) => prev.map((item) => {
         const r = results.find((x) => x.url === item.url);
@@ -62,6 +63,7 @@ export default function Home() {
           responseTime: r.responseTime,
           dns: r.dns,
           tls: r.tls,
+          health: r.health,
         };
       }));
       setLastUpdated(Date.now());
@@ -109,10 +111,10 @@ export default function Home() {
   const sorted = [...status].sort((a, b) => Number(b.isDown) - Number(a.isDown) || (b.responseTime - a.responseTime));
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0f1c", color: "#e2e8f0", fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+  <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#e2e8f0", fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       {/* Nav */}
       <nav style={{
-        background: "rgba(15, 23, 42, 0.8)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(148, 163, 184, 0.1)",
+        background: "rgba(10,10,10,0.85)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(255,255,255,0.06)",
         padding: "1rem 0", position: "sticky", top: 0, zIndex: 10,
       }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 2rem" }}>
@@ -142,7 +144,7 @@ export default function Home() {
               {s.name}: {s.isDown ? 'Down' : 'Up'}
             </span>
           ))}
-          <span style={{ fontSize: 12, color: '#94a3b8', background: 'rgba(148,163,184,0.12)', border: '1px solid rgba(148,163,184,0.25)', padding: '0.25rem 0.6rem', borderRadius: 999 }}>
+          <span style={{ fontSize: 12, color: '#94a3b8', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.25rem 0.6rem', borderRadius: 999 }}>
             Online: {status.filter(s=>!s.isDown).length}/{status.length}
           </span>
         </div>
@@ -153,19 +155,20 @@ export default function Home() {
       <main style={{ maxWidth: 1200, margin: "0 auto", padding: "1.5rem 2rem 2rem" }}>
         <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))" }}>
           {sorted.map((s) => (
-            <div key={s.url} style={{ background: "linear-gradient(135deg, #0b1220, #172036)", borderRadius: 12, padding: "1rem 1.1rem", border: "1px solid rgba(148,163,184,0.1)", position: "relative", overflow: "hidden", boxShadow: "0 10px 20px rgba(0,0,0,0.25)" }}>
+            <div key={s.url} style={{ background: "linear-gradient(135deg, #0d0d0d, #161616)", borderRadius: 12, padding: "1rem 1.1rem", border: "1px solid rgba(255,255,255,0.06)", position: "relative", overflow: "hidden", boxShadow: "0 10px 20px rgba(0,0,0,0.25)" }}>
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: s.isDown ? "linear-gradient(90deg, #dc2626, #f59e0b)" : "linear-gradient(90deg, #10b981, #3b82f6)" }} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#e2e8f0" }}>{s.name}</h2>
-                  <span style={{ fontSize: 12, color: "#7c8aa0", background: "rgba(148,163,184,0.08)", padding: "0.2rem 0.5rem", borderRadius: 6 }}>Server-side Monitor</span>
+                  <span style={{ fontSize: 12, color: "#9aa7bb", background: "rgba(255,255,255,0.06)", padding: "0.2rem 0.5rem", borderRadius: 6 }}>Server-side Monitor</span>
                 </div>
                 <div style={{ padding: "0.5rem 1rem", borderRadius: 8, fontWeight: 700, fontSize: 12, color: "white",
-                  background: s.statusCode === 200 ? "linear-gradient(135deg, #059669, #047857)"
+                  background: (s.name === 'Backend' && (s as any).health?.up === true) || s.statusCode === 200 ? "linear-gradient(135deg, #059669, #047857)"
                     : s.statusCode === 0 || s.statusCode === 502 || s.statusCode === 503 || (s.statusCode && s.statusCode >= 500) ? "linear-gradient(135deg, #dc2626, #b91c1c)"
                     : s.statusCode && s.statusCode >= 400 ? "linear-gradient(135deg, #f59e0b, #d97706)"
                     : "linear-gradient(135deg, #6b7280, #4b5563)" }}>
-                  {s.statusCode === 200 ? "Online"
+                  {(s.name === 'Backend' && (s as any).health?.up === true) ? "Online"
+                    : s.statusCode === 200 ? "Online"
                     : s.statusCode === 404 ? "Not Found"
                     : s.statusCode === 502 ? "Bad Gateway"
                     : s.statusCode === 503 ? "Service Unavailable"
@@ -177,13 +180,13 @@ export default function Home() {
               </div>
 
               <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-                <div style={{ background: "rgba(148,163,184,0.08)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(148,163,184,0.2)" }}>
+                <div style={{ background: "rgba(255,255,255,0.06)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}>
                   <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>Status Code</span>
-                  <span style={{ color: s.statusCode === 200 ? "#10b981" : s.statusCode === 0 ? "#dc2626" : s.statusCode && s.statusCode < 400 ? "#f59e0b" : s.statusCode ? "#dc2626" : "#64748b", fontSize: 14, fontWeight: 700 }}>
-                    {s.statusCode === 0 ? "Network Error" : s.statusCode ? `HTTP ${s.statusCode}` : "Checking..."}
+                  <span style={{ color: (s.name === 'Backend' && (s as any).health?.up === true) || s.statusCode === 200 ? "#10b981" : s.statusCode === 0 ? "#dc2626" : s.statusCode && s.statusCode < 400 ? "#f59e0b" : s.statusCode ? "#dc2626" : "#64748b", fontSize: 14, fontWeight: 700 }}>
+                    {(s.name === 'Backend' && (s as any).health?.up === true) ? "Healthy" : (s.statusCode === 0 ? "Network Error" : s.statusCode ? `HTTP ${s.statusCode}` : "Checking...")}
                   </span>
                 </div>
-                <div style={{ background: "rgba(148,163,184,0.08)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(148,163,184,0.2)" }}>
+                <div style={{ background: "rgba(255,255,255,0.06)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}>
                   <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>Response Time</span>
                   <span style={{ color: s.responseTime === 0 ? "#64748b" : s.responseTime < 500 ? "#10b981" : s.responseTime < 1000 ? "#f59e0b" : "#dc2626", fontSize: 14, fontWeight: 700 }}>
                     {s.responseTime === 0 ? "Checking..." : `${s.responseTime}ms`}
@@ -191,7 +194,7 @@ export default function Home() {
                 </div>
                 {'tls' in s && (s as any).tls && typeof (s as any).tls?.daysRemaining !== 'undefined' && (
                   <div
-                    style={{ background: "rgba(148,163,184,0.08)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(148,163,184,0.2)" }}
+                    style={{ background: "rgba(255,255,255,0.06)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}
                     title={(() => {
                       const t: any = (s as any).tls || {};
                       const parts: string[] = [];
@@ -208,7 +211,7 @@ export default function Home() {
                   </div>
                 )}
                 {('dns' in s) && (s as any).dns && (
-                  <div style={{ background: "rgba(148,163,184,0.08)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(148,163,184,0.2)" }}
+                  <div style={{ background: "rgba(255,255,255,0.06)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}
                        title={(s as any).dns?.addresses?.map((a: any) => `${a.address} (IPv${a.family})`).join('\n') || (s as any).dns?.error || 'DNS info'}>
                     <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>DNS</span>
                     <span style={{ color: "#e2e8f0", fontSize: 14, fontWeight: 700 }}>
@@ -222,15 +225,32 @@ export default function Home() {
                     </span>
                   </div>
                 )}
-                {s.isDown && (
+                {/* Backend-only health metrics */}
+                {s.name === 'Backend' && (s as any).health && (
+                  <>
+                    <div style={{ background: "rgba(255,255,255,0.06)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}>
+                      <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>DB</span>
+                      <span style={{ color: (s as any).health?.database ? '#10b981' : '#ef4444', fontSize: 14, fontWeight: 700 }}>
+                        {(s as any).health?.database ? 'Connected' : 'Down'}
+                      </span>
+                    </div>
+                    <div style={{ background: "rgba(255,255,255,0.06)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}>
+                      <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>Uptime</span>
+                      <span style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 700 }}>
+                        {(s as any).health?.uptime || '—'}
+                      </span>
+                    </div>
+                  </>
+                )}
+        {(s.name === 'Backend' ? !(s as any).health?.up : s.isDown) && (
                   <div style={{ background: "rgba(239,68,68,0.12)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(248,113,113,0.25)", color: "#f87171" }}>
-                    ⚠️ Service disruption detected{typeof s.downSince === 'number' ? ` • ${Math.floor((Date.now() - s.downSince) / 1000)}s` : ''}
+          ⚠️ Service disruption detected{typeof s.downSince === 'number' ? ` • ${Math.floor((Date.now() - s.downSince) / 1000)}s` : ''}
                   </div>
                 )}
                 <div style={{ marginLeft: "auto", display: 'flex', gap: 8 }}>
                   <button
                     onClick={() => setExpanded(e => ({ ...e, [s.url]: !e[s.url] }))}
-                    style={{ background: 'linear-gradient(135deg, #374151, #1f2937)', color: '#e5e7eb', fontWeight: 700, border: '1px solid rgba(148,163,184,0.2)', padding: '0.4rem 0.7rem', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}
+                    style={{ background: 'linear-gradient(135deg, #232323, #1a1a1a)', color: '#e5e7eb', fontWeight: 700, border: '1px solid rgba(255,255,255,0.08)', padding: '0.4rem 0.7rem', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}
                     aria-expanded={!!expanded[s.url]}
                   >{expanded[s.url] ? 'Hide details' : 'Details'}</button>
                   <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: "#93c5fd", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>Visit Service →</a>
@@ -276,7 +296,7 @@ export default function Home() {
 
               {/* Details panel */}
               {expanded[s.url] && (
-                <div style={{ marginTop: 12, padding: '0.9rem 1rem', borderRadius: 10, background: 'rgba(148,163,184,0.06)', border: '1px solid rgba(148,163,184,0.15)' }}>
+                <div style={{ marginTop: 12, padding: '0.9rem 1rem', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
                   <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
                     <div>
                       <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 4 }}>DNS Records</div>
@@ -333,7 +353,7 @@ export default function Home() {
   {/* Incidents */}
   <IncidentsSection />
 
-  <footer style={{ textAlign: "center", marginTop: 40, padding: "24px 0", borderTop: "1px solid rgba(148, 163, 184, 0.1)", color: "#64748b" }}>
+  <footer style={{ textAlign: "center", marginTop: 40, padding: "24px 0", borderTop: "1px solid rgba(255,255,255,0.06)", color: "#8b93a3" }}>
         <p style={{ margin: 0, fontSize: 14 }}>Crafted by <a href="https://guns.lol/izan" target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6", fontWeight: 600, textDecoration: "none" }}>Izan</a> — 2025</p>
         <p style={{ margin: "6px 0 0", fontSize: 14 }}>Built with <span style={{ color: "#3b82f6", fontWeight: 600 }}>Next.js</span> • Designed & developed with <span style={{ color: "#ef4444" }}>❤️</span></p>
         <p style={{ margin: "6px 0 0", fontSize: 14 }}>
@@ -381,7 +401,7 @@ function IncidentsSection() {
     <section style={{ marginTop: 12, padding: '0 2rem' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
         <h3 style={{ margin: '0 0 8px', color: '#e2e8f0', fontSize: '1rem', fontWeight: 700 }}>Incidents</h3>
-        <div style={{ background: 'linear-gradient(135deg, #0b1220, #172036)', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 12, padding: '0.9rem 1rem' }}>
+  <div style={{ background: 'linear-gradient(135deg, #0d0d0d, #161616)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '0.9rem 1rem' }}>
           <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 10 }}>
             {/* Pinned: Latest official update (from Discord announcements) */}
             <li style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr auto' }}>
@@ -389,7 +409,7 @@ function IncidentsSection() {
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: 700, color: '#e2e8f0' }}>Official update <span style={{ color: '#94a3b8', fontWeight: 600 }}>(from Discord announcements)</span></span>
                   <span style={{ fontSize: 12, color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', padding: '0.1rem 0.4rem', borderRadius: 999 }}>major</span>
-                  <span style={{ fontSize: 12, color: '#94a3b8', border: '1px solid rgba(148,163,184,0.25)', padding: '0.1rem 0.4rem', borderRadius: 999 }}>informational</span>
+                  <span style={{ fontSize: 12, color: '#94a3b8', border: '1px solid rgba(255,255,255,0.08)', padding: '0.1rem 0.4rem', borderRadius: 999 }}>informational</span>
                 </div>
                 <div style={{ color: '#cbd5e1', fontSize: 13, marginTop: 4, lineHeight: 1.6 }}>
                   <p style={{ margin: '0 0 6px' }}>Dear community, we've already seen the current Nginx internal server code 500 issue, and we're already working on a solution as quickly as possible. @Wplace and I have been coding non-stop for 24 hours to address all current issues. We addressed the session issue previously, along with minor changes that will help in the future, and we believe it will no longer occur. We migrated the server to higher capacity, and now, when we had a break from the session issue, the current server couldn't handle the number of requests during this peak period.</p>
@@ -408,7 +428,7 @@ function IncidentsSection() {
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 700, color: '#e2e8f0' }}>{inc.title}</span>
                       <span style={{ fontSize: 12, color: colorFor(inc.severity), border: `1px solid ${colorFor(inc.severity)}40`, padding: '0.1rem 0.4rem', borderRadius: 999, background: 'transparent' }}>{inc.severity}</span>
-                      <span style={{ fontSize: 12, color: '#94a3b8', border: '1px solid rgba(148,163,184,0.25)', padding: '0.1rem 0.4rem', borderRadius: 999 }}>{inc.status}</span>
+                      <span style={{ fontSize: 12, color: '#94a3b8', border: '1px solid rgba(255,255,255,0.08)', padding: '0.1rem 0.4rem', borderRadius: 999 }}>{inc.status}</span>
                     </div>
                     {inc.description && <div style={{ color: '#cbd5e1', fontSize: 13, marginTop: 4 }}>{inc.description}</div>}
                     {inc.affectedUrls?.length ? (

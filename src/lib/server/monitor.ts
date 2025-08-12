@@ -24,6 +24,7 @@ export type ServiceResult = {
   error?: string
   dns?: DNSInfo
   tls?: TLSInfo
+  health?: { up?: boolean; database?: boolean; uptime?: string }
 }
 
 export const TIMEOUT_MS = 8000
@@ -94,6 +95,44 @@ export async function checkService(service: Service): Promise<ServiceResult> {
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
   const start = Date.now()
   try {
+    const hostname = getHostnameFromUrl(service.url)
+    let dnsInfo: DNSInfo | undefined
+    let tlsInfo: TLSInfo | undefined
+    let health: { up?: boolean; database?: boolean; uptime?: string } | undefined
+
+    // If backend, use /health as the primary check
+    if (hostname === 'backend.wplace.live') {
+      const hc = new AbortController()
+      const hid = setTimeout(() => hc.abort(), Math.min(TIMEOUT_MS, 5000))
+      const healthUrl = service.url.replace(/\/$/, '') + '/health'
+      const hRes = await fetch(healthUrl, { cache: 'no-store', signal: hc.signal })
+      clearTimeout(hid)
+      const duration = Date.now() - start
+      let statusCode = hRes.status
+      let isDown = !hRes.ok
+      try {
+        const hJson: any = await hRes.json().catch(() => null)
+        if (hJson && typeof hJson === 'object') {
+          const up = typeof hJson.up === 'boolean' ? hJson.up : undefined
+          const database = typeof hJson.database === 'boolean' ? hJson.database : undefined
+          const uptime = typeof hJson.uptime === 'string' ? hJson.uptime : undefined
+          health = { up, database, uptime }
+          if (typeof up === 'boolean') {
+            isDown = !up
+            if (up && statusCode !== 200) statusCode = 200 // normalize to healthy
+          }
+        }
+      } catch {}
+      if (hostname) {
+        try { dnsInfo = await resolveDNS(hostname) } catch {}
+        if (service.url.startsWith('https://')) {
+          try { tlsInfo = await getTLSInfo(hostname, 443) } catch {}
+        }
+      }
+      return { name: service.name, url: service.url, statusCode, responseTime: duration, isDown, dns: dnsInfo, tls: tlsInfo, health }
+    }
+
+    // Default path: fetch the root URL
     const res = await fetch(service.url, {
       method: 'GET',
       redirect: 'follow',
@@ -104,17 +143,13 @@ export async function checkService(service: Service): Promise<ServiceResult> {
     const statusCode = res.status
     const isDown = !(statusCode >= 200 && statusCode < 300)
 
-    // DNS + TLS (best-effort)
-    const hostname = getHostnameFromUrl(service.url)
-    let dnsInfo: DNSInfo | undefined
-    let tlsInfo: TLSInfo | undefined
     if (hostname) {
       try { dnsInfo = await resolveDNS(hostname) } catch {}
       if (service.url.startsWith('https://')) {
         try { tlsInfo = await getTLSInfo(hostname, 443) } catch {}
       }
     }
-    return { name: service.name, url: service.url, statusCode, responseTime: duration, isDown, dns: dnsInfo, tls: tlsInfo }
+    return { name: service.name, url: service.url, statusCode, responseTime: duration, isDown, dns: dnsInfo, tls: tlsInfo, health }
   } catch (err: any) {
     const duration = Date.now() - start
     const errorMsg = err?.name === 'AbortError' ? 'Timeout' : (err?.message || 'Network Error')
