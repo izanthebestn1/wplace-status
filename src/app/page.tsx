@@ -214,7 +214,7 @@ export default function Home() {
       </section>
 
       <footer style={{ textAlign: "center", marginTop: 40, padding: "24px 0", borderTop: "1px solid rgba(148, 163, 184, 0.1)", color: "#64748b" }}>
-        <p style={{ margin: 0, fontSize: 14 }}>© 2025 <span style={{ color: "#3b82f6", fontWeight: 600 }}>Izan</span>. All rights reserved.</p>
+        <p style={{ margin: 0, fontSize: 14 }}>© 2025 <a href="https://guns.lol/izan" target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6", fontWeight: 600, textDecoration: "none" }}>Izan</a>. All rights reserved.</p>
         <p style={{ margin: "6px 0 0", fontSize: 14 }}>Built with <span style={{ color: "#3b82f6", fontWeight: 600 }}>Next.js</span> • Designed & developed with <span style={{ color: "#ef4444" }}>❤️</span></p>
       </footer>
 
