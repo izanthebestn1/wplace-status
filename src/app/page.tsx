@@ -88,7 +88,7 @@ export default function Home() {
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 2rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-              <div style={{ width: 32, height: 32, background: "linear-gradient(135deg, #3b82f6, #1d4ed8)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", color: "white" }}>W</div>
+              <img src="/favicon.png" alt="WPlace" width={32} height={32} style={{ width: 32, height: 32, borderRadius: 8, objectFit: "cover" }} />
               <span style={{ fontSize: "1.25rem", fontWeight: 600 }}>WPlace Status</span>
               <div style={{ background: "linear-gradient(135deg, #059669, #047857)", color: "white", fontSize: 12, fontWeight: 700, padding: "0.25rem 0.5rem", borderRadius: 6, letterSpacing: "0.05em" }}>v1.6</div>
             </div>
