@@ -1,4 +1,7 @@
 import { promises as dns } from 'dns'
+import fs from 'fs'
+import path from 'path'
+import { hasKV, kvAddHistory, kvGetHistory } from './storage'
 import tls from 'tls'
 import { URL } from 'url'
 
@@ -173,6 +176,34 @@ export type HistoryItem = ServiceResult & { timestamp: number }
 const historyStore: Map<string, HistoryItem[]> = new Map()
 const HISTORY_LIMIT = 200
 
+// Persist history to disk (best-effort, for dev/local). Not durable in serverless.
+const DATA_DIR = path.join(process.cwd(), '.next', 'cache')
+const DATA_FILE = path.join(DATA_DIR, 'monitor-history.json')
+let persistTimer: NodeJS.Timeout | null = null
+
+function schedulePersist() {
+  if (persistTimer) clearTimeout(persistTimer)
+  persistTimer = setTimeout(() => {
+    try {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+      const obj: Record<string, HistoryItem[]> = {}
+      for (const [k, v] of historyStore.entries()) obj[k] = v
+      fs.writeFileSync(DATA_FILE, JSON.stringify(obj))
+    } catch {}
+  }, 300)
+}
+
+// Load persisted history on startup
+try {
+  if (fs.existsSync(DATA_FILE)) {
+    const raw = fs.readFileSync(DATA_FILE, 'utf-8')
+    const obj = JSON.parse(raw) as Record<string, HistoryItem[]>
+    for (const [k, v] of Object.entries(obj)) {
+      if (Array.isArray(v)) historyStore.set(k, v.slice(-HISTORY_LIMIT))
+    }
+  }
+} catch {}
+
 export function addHistory(result: ServiceResult) {
   const list = historyStore.get(result.url) || []
   const item: HistoryItem = { ...result, timestamp: Date.now() }
@@ -180,11 +211,20 @@ export function addHistory(result: ServiceResult) {
   // cap size
   while (list.length > HISTORY_LIMIT) list.shift()
   historyStore.set(result.url, list)
+  schedulePersist()
+  // best-effort KV push
+  kvAddHistory(item).catch(() => {})
 }
 
 export function getHistory(url?: string): Record<string, HistoryItem[]> | HistoryItem[] {
   if (url) {
-    return historyStore.get(url) || []
+    const mem = historyStore.get(url) || []
+    // merge KV and memory, preferring latest, capped
+    if (hasKV()) {
+      // Note: async read not possible in this sync signature; keep returning mem and let callers that need KV use API endpoints which fetch KV before summarizing.
+      return mem
+    }
+    return mem
   }
   const out: Record<string, HistoryItem[]> = {}
   for (const [k, v] of historyStore.entries()) out[k] = v

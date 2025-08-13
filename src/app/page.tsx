@@ -106,7 +106,7 @@ export default function Home() {
         };
       }));
       setLastUpdated(Date.now());
-      // fetch daily summary after recording history server-side
+  // fetch daily summary after recording history server-side
       try {
         const params = urls.map(u => `u=${encodeURIComponent(u.url)}`).join('&');
         const dRes = await fetch(`/api/daily?days=30&${params}`, { cache: 'no-store' });
@@ -137,33 +137,45 @@ export default function Home() {
         statusCode: 0,
         responseTime: 0,
       })));
+      // still try to refresh daily squares from any existing history
+      try {
+        const params = urls.map(u => `u=${encodeURIComponent(u.url)}`).join('&');
+        const dRes = await fetch(`/api/daily?days=30&${params}`, { cache: 'no-store' });
+        const dJson = await dRes.json();
+        setDaily(dJson.summary || {});
+      } catch {}
     }
   };
 
   useEffect(() => {
     const t = setTimeout(() => checkStatus(), 300);
-  const i = setInterval(() => checkStatus(), 15000);
+    // Poll every 18s to reduce request volume
+    const i = setInterval(() => checkStatus(), 18000);
     return () => { clearTimeout(t); clearInterval(i); };
   }, []);
 
   const anyDown = status.some((s) => s.isDown);
-  const sorted = [...status].sort((a, b) => Number(b.isDown) - Number(a.isDown) || (b.responseTime - a.responseTime));
+  // Keep a stable, predictable order for cards (avoid jumping based on latency or status)
+  const nameOrder = ["Frontend", "Backend"] as const;
+  const fixedOrder = [...status].sort((a, b) => nameOrder.indexOf(a.name as any) - nameOrder.indexOf(b.name as any));
 
   return (
-  <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#e2e8f0", fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+  <div suppressHydrationWarning data-darkreader-ignore style={{ minHeight: "100vh", background: "#0a0a0a", color: "#e2e8f0", fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       {/* Nav */}
       <nav style={{
         background: "rgba(10,10,10,0.85)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(255,255,255,0.06)",
         padding: "1rem 0", position: "sticky", top: 0, zIndex: 10,
       }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 2rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              {/* Spacer to avoid hamburger overlap on small screens */}
+              <div className="menu-spacer" style={{ width: 48, height: 1, display: 'none' }} />
               <img src="/icon.png" alt="WPlace" width={32} height={32} style={{ width: 32, height: 32, borderRadius: 8, objectFit: "cover" }} />
               <span style={{ fontSize: "1.25rem", fontWeight: 600 }}>WPlace Status</span>
               <div style={{ background: "linear-gradient(135deg, #059669, #047857)", color: "white", fontSize: 12, fontWeight: 700, padding: "0.25rem 0.5rem", borderRadius: 6, letterSpacing: "0.05em" }}>v1.6</div>
             </div>
-            <div style={{ color: "#94a3b8", fontSize: 14 }}>Last updated: {lastUpdated ? new Date(lastUpdated).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}</div>
+            <div style={{ color: "#94a3b8", fontSize: 14, minWidth: 130, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>Last updated: {lastUpdated ? new Date(lastUpdated).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}</div>
           </div>
         </div>
       </nav>
@@ -173,12 +185,12 @@ export default function Home() {
       {/* Header */}
       <header style={{ textAlign: "center", padding: "2.5rem 2rem 1rem" }}>
         <h1 style={{ fontSize: "2.25rem", fontWeight: 800, margin: 0, background: "linear-gradient(135deg, #f1f5f9, #cbd5e1)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>WPlace Status Dashboard</h1>
-        <p style={{ marginTop: 10, color: "#94a3b8" }}>Real-time status of WPlace</p>
-        <div style={{ marginTop: 12, display: 'inline-flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
+  <p style={{ marginTop: 10, color: "#94a3b8" }}>Real-time status of WPlace (Response Time and Uptime)</p>
+  <div className="header-pills" style={{ marginTop: 12, display: 'inline-flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', minHeight: 44 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: anyDown ? '#ef4444' : '#10b981', background: anyDown ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)', border: `1px solid ${anyDown ? 'rgba(248,113,113,0.25)' : 'rgba(16,185,129,0.25)'}`, padding: '0.25rem 0.6rem', borderRadius: 999 }}>
             {anyDown ? 'Service Issues Detected' : 'All Systems Operational'}
           </span>
-          {sorted.map(s => (
+          {fixedOrder.map(s => (
             <span key={'pill-'+s.url} style={{ fontSize: 12, color: s.isDown ? '#ef4444' : '#10b981', background: s.isDown ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)', border: `1px solid ${s.isDown ? 'rgba(248,113,113,0.25)' : 'rgba(16,185,129,0.25)'}`, padding: '0.25rem 0.6rem', borderRadius: 999 }}>
               {s.name}: {s.isDown ? 'Down' : 'Up'}
             </span>
@@ -193,7 +205,7 @@ export default function Home() {
       {/* Services */}
       <main style={{ maxWidth: 1200, margin: "0 auto", padding: "1.5rem 2rem 2rem" }}>
         <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))" }}>
-          {sorted.map((s) => (
+          {fixedOrder.map((s) => (
             <div key={s.url} style={{ background: "linear-gradient(135deg, #0d0d0d, #161616)", borderRadius: 12, padding: "1rem 1.1rem", border: "1px solid rgba(255,255,255,0.06)", position: "relative", overflow: "hidden", boxShadow: "0 10px 20px rgba(0,0,0,0.25)" }}>
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: s.isDown ? "linear-gradient(90deg, #dc2626, #f59e0b)" : "linear-gradient(90deg, #10b981, #3b82f6)" }} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -236,7 +248,7 @@ export default function Home() {
                 {s.name === 'Backend' && (s as any).health && (
                   <>
                     <div style={{ background: "rgba(255,255,255,0.06)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}>
-                      <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>Data Base</span>
+                      <span style={{ color: "#94a3b8", fontSize: 12, display: "block", marginBottom: 4 }}>Database</span>
                       <span style={{ color: (s as any).health?.database ? '#10b981' : '#ef4444', fontSize: 14, fontWeight: 700 }}>
                         {(s as any).health?.database ? 'Connected' : 'Down'}
                       </span>
@@ -249,11 +261,16 @@ export default function Home() {
                     </div>
                   </>
                 )}
-        {(s.name === 'Backend' ? !(s as any).health?.up : s.isDown) && (
-                  <div style={{ background: "rgba(239,68,68,0.12)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(248,113,113,0.25)", color: "#f87171" }}>
-          ⚠️ Service disruption detected{typeof s.downSince === 'number' ? ` • ${Math.floor((Date.now() - s.downSince) / 1000)}s` : ''}
-                  </div>
-                )}
+  {(() => {
+    const alert = (s.name === 'Backend' ? !(s as any).health?.up : s.isDown);
+    return alert ? (
+      <div style={{ background: "rgba(239,68,68,0.12)", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid rgba(248,113,113,0.25)", color: "#f87171", minHeight: 36 }}>
+        ⚠️ Backend currently unreachable{typeof s.downSince === 'number' ? ` • ${Math.floor((Date.now() - s.downSince) / 1000)}s` : ''}
+      </div>
+    ) : (
+      <div style={{ height: 36 }} aria-hidden="true" />
+    );
+  })()}
                 <div style={{ marginLeft: "auto", display: 'flex', gap: 8 }}>
                   <button
                     onClick={() => setExpanded(e => ({ ...e, [s.url]: !e[s.url] }))}
@@ -331,7 +348,7 @@ export default function Home() {
   <IncidentsSection />
 
   <footer style={{ textAlign: "center", marginTop: 40, padding: "24px 0", borderTop: "1px solid rgba(255,255,255,0.06)", color: "#8b93a3" }}>
-        <p style={{ margin: 0, fontSize: 14 }}>Crafted by <a href="https://guns.lol/izan" target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6", fontWeight: 600, textDecoration: "none" }}>Izan</a> — 2025</p>
+        <p style={{ margin: 0, fontSize: 14 }}>Crafted by <a href="https://guns.lol/izan" target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6", fontWeight: 600, textDecoration: "none" }}>Izan</a> (<a href="https://discord.com/users/675360310453993473" target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6", fontWeight: 600, textDecoration: "none" }}>@izanthebestn1</a>) — 2025</p>
         <p style={{ margin: "6px 0 0", fontSize: 14 }}>Built with <span style={{ color: "#3b82f6", fontWeight: 600 }}>Next.js</span> • Designed & developed with <span style={{ color: "#ef4444" }}>❤️</span></p>
         <p style={{ margin: "6px 0 0", fontSize: 14 }}>
           <a href="/terms" style={{ color: "#93c5fd", textDecoration: "none", fontWeight: 600 }}>Terms of Service</a>
@@ -340,6 +357,11 @@ export default function Home() {
 
       <style jsx global>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        /* Show spacer under 640px to prevent hamburger overlap */
+        @media (max-width: 640px) {
+          .menu-spacer { display: block !important; }
+          .header-pills { min-height: 72px !important; }
+        }
       `}</style>
     </div>
   );

@@ -18,4 +18,10 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: 'Montserrat', Arial, Helvetica, sans-serif;
+  color-scheme: dark;
+}
+
+/* Show the navbar spacer only on small screens so the hamburger doesn't overlap the left icon/title */
+@media (max-width: 640px) {
+  .menu-spacer { display: block !important; }
 }

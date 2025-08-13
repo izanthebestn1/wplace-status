@@ -1,0 +1,32 @@
+import { NextRequest } from "next/server";
+
+async function fetchWithTimeout(resource: string, options: RequestInit & { timeout?: number } = {}) {
+  const { timeout = 10000, ...rest } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(resource, { ...rest, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id");
+  const range = searchParams.get("range") || "today"; // today | week | month (backend supports 'today' per example)
+  if (!id) {
+    return new Response(JSON.stringify({ ok: false, error: "Missing alliance id" }), { status: 400, headers: { 'content-type': 'application/json' } });
+  }
+  const url = `https://backend.wplace.live/alliance/${encodeURIComponent(id)}/leaderboard/${encodeURIComponent(range)}`;
+  try {
+    const res = await fetchWithTimeout(url, { headers: { accept: 'application/json' }, cache: 'no-store', timeout: 10000 } as any);
+    const status = res.status;
+    let data: any = null;
+    try { data = await res.json(); } catch {}
+    return new Response(JSON.stringify({ ok: res.ok, status, data, target: url }), { status: 200, headers: { 'content-type': 'application/json' } });
+  } catch (e: any) {
+    return new Response(JSON.stringify({ ok: false, error: String(e?.message || e) }), { status: 500, headers: { 'content-type': 'application/json' } });
+  }
+}

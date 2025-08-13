@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import SidebarMenu from "../components/SidebarMenu";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,13 +37,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning data-darkreader-ignore>
       <head>
-        <meta name="color-scheme" content="dark light" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#0a0a0a" />
       </head>
       <body
+        suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+  <SidebarMenu />
         {children}
   <Analytics />
   <SpeedInsights />
