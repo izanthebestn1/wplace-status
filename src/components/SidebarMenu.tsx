@@ -56,8 +56,6 @@ export default function SidebarMenu() {
         className={`fixed left-0 top-0 z-50 h-screen w-72 transform border-r border-white/10 bg-[color:var(--background)]/95 text-[color:var(--foreground)] backdrop-blur transition-transform ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
-        role="dialog"
-        aria-modal="true"
       >
         <div className="flex items-center justify-between px-4 py-4">
           <span className="text-sm font-semibold tracking-wide opacity-80">Menu</span>

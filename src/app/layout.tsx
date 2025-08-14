@@ -42,6 +42,8 @@ export default function RootLayout({
         <meta name="color-scheme" content="dark" />
         <meta name="theme-color" content="#0a0a0a" />
         <meta name="google-site-verification" content="aGqwOHh2eIqlGFitdTV_-jRe0UTaeZ2U-kyyGDh7YtU" />
+        <link rel="preconnect" href="https://wplace.live" crossOrigin="anonymous" />
+  <link rel="preload" as="style" href="/_next/static/css/7ef141a878320c36.css" />
       </head>
       <body
         suppressHydrationWarning
