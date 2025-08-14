@@ -39,8 +39,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning data-darkreader-ignore>
       <head>
-  <meta name="color-scheme" content="dark" />
-  <meta name="theme-color" content="#0a0a0a" />
+        <meta name="color-scheme" content="dark" />
+        <meta name="theme-color" content="#0a0a0a" />
+        <meta name="google-site-verification" content="aGqwOHh2eIqlGFitdTV_-jRe0UTaeZ2U-kyyGDh7YtU" />
       </head>
       <body
         suppressHydrationWarning
